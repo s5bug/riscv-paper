@@ -1,5 +1,5 @@
 [doc]
-name = 'CS220-final-riscv'
+name = 'riscv-paper'
 bundle = 'https://ttassets.z13.web.core.windows.net/tlextras-2020.0r0.tar'
 
 [[output]]
