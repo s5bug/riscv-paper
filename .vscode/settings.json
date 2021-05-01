@@ -1,0 +1,4 @@
+{
+    "latex-workshop.latex.external.build.command": "tectonic",
+    "latex-workshop.latex.external.build.args": ["-X", "build"],
+}
