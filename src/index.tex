@@ -8,14 +8,158 @@ complete, without tying itself to hardware implementation details
 
 \subsection{Reduced Instruction Set Computing}
 
+Many modern instruction sets in use, such as x86, continue to expand their
+instruction set, leading to CPUs being harder to build, compact, and verify.
+Reduced Instruction Set Computers (called RISCs) aim to solve this problem
+by using instruction sets that make it easier to create CPUs and offer internal
+optimizations.
+
+The RISC philosophy has been in use since Alan Turing's Automatic Computing
+Engine \cite{doran2005computer}. Modern RISC machines are usually characterized
+by a large amount of registers, and few ways to interact with memory. For
+example, RISC-V has 32 registers, and the only load/store instructions do not
+modify what's in memory \cite{waterman2019risc}.
+
 \section{Comparison to Hack and Hack VM}
+
+The Hack computer also has very few instructions, the A-instruction and the
+C-instruction. If "RISC" is taken literally, Hack could be said to be a RISC
+machine. However, Hack is more classified as a MISC, or Minimal Instruction Set
+Computer. This is because Hack packs a lot of functionality into a singular
+C-instruction. In comparison, RISC-V has separate instructions for each type of
+register comparison and jump \cite{waterman2019risc}.
+
+The Hack instruction set is directly tied to the Hack CPU: Instructions assume
+that both ROM and RAM are exactly addressable by 16 byte addresses. Expressions
+in C-instructions are directly representative of how the ALU works internally.
+Instructions are always meant to take one and only one clock cycle. On the
+contrary, RISC-V is not tied to a hardware implementation: instructions are
+very general as to not enforce a design that isn't portable. Only a minimal
+amount of integer operations are required for the basic instruction set: more
+complex operations for multiplication and floats are extensions, and can be
+implemented in software if they do not exist on the processor
+\cite{waterman2019risc}.
 
 \subsection{Word Size}
 
+Hack uses a 16-bit word. Hack also only has a 16-bit-addressable ROM and a
+16-bit-addressable RAM. Therefore accessing memory in Hack will always
+succeed, and there is no memory that is unaccessible. RISC-V has three
+word-size specifications. 32-bit words and 64-bit words are both ratified in
+the specification, while 128-bit words are still open. RISC-V, because it is
+not tied to a hardware implementation, can have vacant or nonaddressable memory
+regions. When it encounters them, it raises an exception in the processor.
+
+RISC-V aims to be usable both as a bare-metal architecture as well as with
+operating systems. To accomplish this, it allows memory mapping and address
+translation. Hack doesn't load the program data into memory, it has a split ROM
+and RAM, so it cannot truly run an operating system.
+
 \subsection{Registers}
 
-\subsection{Memory Access}
+Hack only has three accessible registers: Data, Memory, and Address. The
+Address and Memory registers have side effects when stored to, so they are not
+considered general-purpose registers. As such, Hack can be said to only have
+one general-purpose register. RISC-V defines 32 registers, 27 of which can be
+used as general-purpose registers under the RISC-V calling convention.
+
+\begin{figure}
+    \begin{verbatim}
+        // Add 4 to D
+        @4
+        D=D+A
+        // Address D
+        A=D
+        // Set to 0
+        M=0
+    \end{verbatim}
+    \caption{Hack ASM to store 0 to D+4}
+    \label{hack-store}
+\end{figure}
+
+\begin{figure}
+    \begin{verbatim}
+        ; store zero to a0+4
+        sw zero,4(a0)
+    \end{verbatim}
+    \caption{RISC-V ASM to store 0 to a0+4}
+    \label{riscv-store}
+\end{figure}
+
+Hack uses the Memory register to interface with RAM directly, while RISC-V can
+only store to RAM with dedicated store instructions, and can only load from
+memory with load instructions or relative addressing modes. Shown in
+Figure~\ref{hack-store} is the Hack Assembly code that would store 0 to an
+offset of a memory address in D. We can see from this that the original
+contents of the D register and the A register are lost after this operation.
+Shown in Figure~\ref{riscv-store} is the equivalent RISC-V code, which does not
+clobber the value in a0, because memory is not accessed via a register.
 
 \subsection{Stack Operations}
 
+In both Hack and RISC-V, the stack pointer is manually controlled. However, in
+Hack, the stack pointer lives at a memory address, while in RISC-V, the stack
+pointer is a register. This makes it a lot harder to dereference the stack
+pointer in Hack, as Hack only has one addressing mode, while RISC-V can use its
+relative addressing mode. However, interacting with memory in Hack is done via
+a register, so doing arithmetic at the top of the stack takes less
+instructions.
+
+\begin{figure}
+    \begin{verbatim}
+        // Pop the value at the top of the stack into D
+        @SP
+        M=M-1
+        A=M
+        D=M
+        // Address the value at the top of the stack
+        @SP
+        A=M
+        // Add D to it
+        M=M+D
+    \end{verbatim}
+    \caption{Hack ASM to add two values at the top of the stack}
+    \label{hack-add}
+\end{figure}
+
+\begin{figure}
+    \begin{verbatim}
+        ; pop a value from the stack and load into a0
+        addiu sp,sp,4
+        lw a0,(sp)
+        ; pop a value from the stack and load into a1
+        lw a1,(sp)
+        ; a0 += a1
+        addu a0,a0,a1
+        ; store a0 back to the top of the stack
+        sw a0,(sp)
+    \end{verbatim}
+    \caption{RISC-V32I ASM to add two values at the top of the stack}
+    \label{riscv-add}
+\end{figure}
+
+In the Forth-like VM language, arithmetic operations are implemented as stack
+modifications, because the VM language repeatedly clobbers A and M, so math
+cannot be done with them. In RISC-V, there is more than one general-purpose
+register, so math can be done without touching the stack. However, many of the
+Hack VM operations can be made much more readable in RISC-V ASM.
+Figure~\ref{hack-add} shows the implementation of \verb|add| in Hack ASM, and
+Figure~\ref{riscv-add} shows the equivalent RISC-V (32-bit) assembly.
+
 \section{Applications of RISC-V}
+
+RISC-V is already being used in embedded devices. Companies like SiFive develop
+Systems on Chips that run RISC-V for usage in Artificial Intelligence and
+Machine Learning \cite{openfive2021soc}. There are also consumer computers that
+run RISC-V being developed, such as the BeagleV. RISC-V is supposed to be
+easier for developers, too. It introduces its own secure boot interface for
+operating systems, called OpenSBI \cite{riscv2021opensbi}. Under discussion are
+certain debugging features for the architecture, such as being able to feed
+individual instructions and inspect output over some communication medium like
+USB \cite{riscv2021debugging}.
+
+Perhaps the most exciting development will be in home computing: the design of
+RISC-V encourage highly-pipelined processors that are small and efficient
+enough to increase clock speed and core count without highly increasing cost.
+However, this opportunity hasn't been well-explored yet, and the lack of RISC-V
+home computers means that software has not been ported to it.
